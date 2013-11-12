@@ -1,13 +1,13 @@
 
+require 'trollop'
+
 class BuildConfig
 
-	def initialize(flavour, sign)
+	def initialize(flavour)
 		@flavour = flavour
-		@sign = sign
 	end
 
 	attr_reader :flavour
-	attr_reader :sign
 end
 
 class Builder
@@ -19,8 +19,9 @@ class Builder
 	@@flavour_folder = @@top_level + '/flavours/'
 	@@output_folder = @@top_level + '/builds/'
 
-	def initialize()
+	def initialize(releaseMode)
 		@results = Hash.new
+		@releaseMode = releaseMode
 	end
 
 	def copyResources(config)
@@ -46,7 +47,7 @@ class Builder
 			return false
 		end
 
-		if config.sign
+		if @releaseMode
 			pipe = IO.popen(@@top_level + '/signProjectAPK.sh')
 			while (line = pipe.gets)
 				print line
@@ -86,7 +87,7 @@ class Builder
 	end
 
 	def buildSingleFlavour(flavour)
-		buildSingleFlavourWithConfig(BuildConfig.new(flavour, false))
+		buildSingleFlavourWithConfig(BuildConfig.new(flavour))
 	end
 
 	def buildSingleFlavourWithConfig(config)
@@ -108,21 +109,27 @@ class Builder
 			msg = v ? 'SUCCESS' : 'FAILED'
 			puts "#{k}: #{msg}"
 		}
+		puts "\n"
 	end
 
 end
 
+opts = Trollop::options do
+	opt :release, "Build in release mode"
+	opt :flavour, "Flavour to build (all will be built if this option is not specified)", :type => String
+end
 
-builder = Builder.new
+# Create Builder with release flag value
+builder = Builder.new(opts[:release])
 
-case ARGV.length
-when 0
-	success = builder.buildAll
-when 1
-	success = builder.buildSingleFlavour(ARGV[0])
+success = false
+# Build either a specific flavour or all flavours
+if opts[:flavour_given]
+	success = builder.buildSingleFlavour(opts[:flavour])
 else
-	puts 'Invalid arguments.'
-	success = false
+	success = builder.buildAll
 end
 
 builder.printResults
+
+exit success ? 0 : 1
